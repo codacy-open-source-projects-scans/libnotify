@@ -397,10 +397,16 @@ notify_notification_dispose (GObject *object)
 {
         NotifyNotification        *obj = NOTIFY_NOTIFICATION (object);
         NotifyNotificationPrivate *priv = obj->priv;
+        GDBusProxy                *proxy;
 
         if (priv->portal_timeout_id) {
                 g_source_remove (priv->portal_timeout_id);
                 priv->portal_timeout_id = 0;
+        }
+
+        proxy = _notify_get_proxy (NULL);
+        if (proxy != NULL) {
+                g_clear_signal_handler (&priv->proxy_signal_handler, proxy);
         }
 
         g_clear_object (&priv->icon_pixbuf);
@@ -413,7 +419,6 @@ notify_notification_finalize (GObject *object)
 {
         NotifyNotification        *obj = NOTIFY_NOTIFICATION (object);
         NotifyNotificationPrivate *priv = obj->priv;
-        GDBusProxy                *proxy;
 
         _notify_cache_remove_notification (obj);
 
@@ -433,11 +438,6 @@ notify_notification_finalize (GObject *object)
 
         if (priv->hints != NULL)
                 g_hash_table_destroy (priv->hints);
-
-        proxy = _notify_get_proxy (NULL);
-        if (proxy != NULL && priv->proxy_signal_handler != 0) {
-                g_signal_handler_disconnect (proxy, priv->proxy_signal_handler);
-        }
 
         g_free (obj->priv);
 
@@ -684,19 +684,11 @@ activate_action (NotifyNotification *notification,
                 return FALSE;
         }
 
-        /* Some clients have assumed it is safe to unref the
-         * Notification at the end of their NotifyActionCallback
-         * so we add a temporary ref until we're done with it.
-         */
-        g_object_ref (notification);
-
         notification->priv->activating = TRUE;
         pair->cb (notification, (char *) action, pair->user_data);
         notification->priv->activating = FALSE;
         g_free (notification->priv->activation_token);
         notification->priv->activation_token = NULL;
-
-        g_object_unref (notification);
 
         return TRUE;
 }
@@ -1107,10 +1099,11 @@ notify_notification_show (NotifyNotification *notification,
         }
 
         if (priv->proxy_signal_handler == 0) {
-                priv->proxy_signal_handler = g_signal_connect (proxy,
-                                                               "g-signal",
-                                                               G_CALLBACK (proxy_g_signal_cb),
-                                                               notification);
+                priv->proxy_signal_handler = g_signal_connect_object (proxy,
+                                                                      "g-signal",
+                                                                      G_CALLBACK (proxy_g_signal_cb),
+                                                                      notification,
+                                                                      0);
         }
 
         if (_notify_uses_portal_notifications ()) {
