@@ -33,7 +33,6 @@
 
 #include "notify.h"
 #include "internal.h"
-#include "notify-marshal.h"
 
 static gboolean         _initted = FALSE;
 static char            *_app_name = NULL;
@@ -51,6 +50,8 @@ gboolean
 _notify_check_spec_version (int major,
                             int minor)
 {
+        g_assert (_spec_version_major > 0);
+
        if (_spec_version_major > major)
                return TRUE;
        if (_spec_version_major < major)
@@ -125,8 +126,12 @@ _notify_update_spec_version (GError **error)
        char *spec_version;
 
        if (!_notify_get_server_info (NULL, NULL, NULL, &spec_version, error)) {
+                _spec_version_major = 0;
+                _spec_version_minor = 0;
                return FALSE;
        }
+
+       g_debug ("Server spec version is '%s'", spec_version);
 
        sscanf (spec_version,
                "%d.%d",
@@ -281,7 +286,9 @@ _initialize_snap_names (void)
                 }
 
                 if (g_str_equal (ns[1], _snap_name)) {
-                        _snap_app = g_strdup (ns[2]);
+                        /* Discard the last namespace, being the extension. */
+                        g_clear_pointer (&ns[ns_length-1], g_free);
+                        _snap_app = g_strjoinv (".", &ns[2]);
                         g_strfreev (ns);
                         break;
                 }
@@ -297,6 +304,14 @@ _initialize_snap_names (void)
 
         if (_snap_app == NULL) {
                 _snap_app = g_strdup (_snap_name);
+        } else if (strchr (_snap_app, '-')) {
+                const char *snap_uuid;
+
+                /* Snapd appends now an UUID to the app name so let's drop it. */
+                snap_uuid = _snap_app + strlen(_snap_app) - 36 /* UUID length */;
+                if (snap_uuid > _snap_app + 1 && g_uuid_string_is_valid (snap_uuid)) {
+                        *((char *) snap_uuid-1) = '\0';
+                }
         }
 
         g_debug ("SNAP app: %s", _snap_app);
@@ -482,10 +497,7 @@ notify_uninit (void)
                 return;
         }
 
-        if (_app_name != NULL) {
-                g_free (_app_name);
-                _app_name = NULL;
-        }
+        g_clear_pointer (&_app_name, g_free);
 
         for (l = _active_notifications; l != NULL; l = l->next) {
                 NotifyNotification *n = NOTIFY_NOTIFICATION (l->data);
@@ -494,21 +506,14 @@ notify_uninit (void)
                     _notify_notification_has_nondefault_actions (n)) {
                         notify_notification_close (n, NULL);
                 }
+
+                g_object_run_dispose (G_OBJECT (n));
         }
 
-        if (_proxy != NULL) {
-            g_object_unref (_proxy);
-            _proxy = NULL;
-        }
-
-        g_free (_snap_name);
-        _snap_name = NULL;
-
-        g_free (_snap_app);
-        _snap_app = NULL;
-
-        g_free (_flatpak_app);
-        _flatpak_app = NULL;
+        g_clear_object (&_proxy);
+        g_clear_pointer (&_snap_name, g_free);
+        g_clear_pointer (&_snap_app, g_free);
+        g_clear_pointer (&_flatpak_app, g_free);
 
         _initted = FALSE;
 }
@@ -566,6 +571,25 @@ _get_portal_proxy (GError **error)
         return proxy;
 }
 
+static void
+on_name_owner_changed (GDBusProxy *proxy)
+{
+        g_autoptr(GError) error = NULL;
+        g_autofree char *name_owner = NULL;
+
+        name_owner = g_dbus_proxy_get_name_owner (_proxy);
+
+        if (!name_owner) {
+                _spec_version_major = 0;
+                _spec_version_minor = 0;
+                return;
+        }
+
+        if (!_notify_update_spec_version (&error)) {
+                g_warning ("Failed to update the spec version: %s", error->message);
+        }
+}
+
 /*
  * _notify_get_proxy:
  * @error: (nullable): a location to store a #GError, or %NULL
@@ -604,12 +628,13 @@ out:
         }
 
         if (!_notify_update_spec_version (error)) {
-               g_object_unref (_proxy);
-               _proxy = NULL;
+               g_clear_object (&_proxy);
                return NULL;
         }
 
         g_object_add_weak_pointer (G_OBJECT (_proxy), (gpointer *) &_proxy);
+        g_signal_connect (_proxy, "notify::name-owner",
+                          G_CALLBACK (on_name_owner_changed), NULL);
 
         return _proxy;
 }

@@ -1,10 +1,12 @@
 project('libnotify',
   'c',
-  version: '0.8.3',
-  meson_version: '>= 0.56.0')
+  version: '0.8.7',
+  meson_version: '>= 0.64.0')
 
+fs = import('fs')
 gnome = import('gnome')
 pkgconfig = import('pkgconfig')
+python = import('python')
 
 cc = meson.get_compiler('c')
 
@@ -44,13 +46,20 @@ glib_req_version = '>= 2.62.0'
 gdk_pixbuf_dep = dependency('gdk-pixbuf-2.0')
 glib_dep = dependency('glib-2.0', version: glib_req_version)
 gio_dep = dependency('gio-2.0', version: glib_req_version)
-gtk_dep = dependency('gtk+-3.0', version: '>= 2.90', required: get_option('tests'))
+gio_unix_dep = dependency('gio-unix-2.0', version: glib_req_version)
+gtk_dep = dependency('gtk4', version: '>= 4.0', required: get_option('tests'))
 
-libnotify_deps = [gdk_pixbuf_dep, gio_dep, glib_dep]
+have_gio_desktop_app_info = cc.check_header('gio/gdesktopappinfo.h',
+  dependencies: gio_unix_dep,
+  required: host_machine.system() == 'linux',
+)
+
+libnotify_deps = [gdk_pixbuf_dep, gio_dep, glib_dep, gio_unix_dep]
 tests_deps = [gtk_dep]
 
 conf = configuration_data()
 conf.set_quoted('VERSION', meson.project_version())
+conf.set('HAVE_GIO_DESKTOP_APP_INFO', have_gio_desktop_app_info)
 configure_file(input: 'config.h.meson',
   output : 'config.h',
   configuration : conf)

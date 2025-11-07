@@ -1,3 +1,74 @@
+New in 0.8.7
+============
+
+This is release contains bugfixes when used within a snap and a new API to
+get a Gio.AppLaunchContext that can be used to launch applications with an
+action activation token.
+
+* ci: Enable tests again (adding new dependencies) [Marco]
+* tests: Run non-interactive tests in headless mode [Marco]
+* test-image: Use a local asset instead of relying on invalid icon theme [Marco]
+* notification: Add ability to get a GAppLaunchContext on activation [Marco]
+* notify: Ignore the snap UUID to compute the snap application [Marco]
+* notify: Support snap application that contains a dot in their name [Marco]
+* notification: Allow using a desktop file as is from a snap if readable [Marco]
+* notification: Do not use the desktop file logic for icons [Marco]
+* notification: Remove app name warning in sandboxes [Maximiliano]
+
+Contributors:
+  Marco Trevisan, Maximiliano Sandoval
+
+New in 0.8.6
+============
+
+This contains no substantive code changes compared to 0.8.5. Version 0.8.5 did
+not get properly distributed due to a CI configuration issue.
+
+* ci: Don't try to run tests for dist job [Logan Rathbone]
+
+Contributors:
+  Logan Rathbone
+
+New in 0.8.5
+============
+
+This is a bugfix release.
+
+* Revert usage of autopointers (#54) [Logan Rathbone]
+* notify-send: wait timeout variable should be int, not long [Logan Rathbone]
+* test: make tests run with `meson test` (#30) [Logan Rathbone, with thanks to
+  'matoro']
+* notify-send: Utilize app_icon property rather than icon-name (#53) [Logan
+  Rathbone]
+* notify: constructor should set app-icon property, not icon-name (#53) [Logan
+  Rathbone]
+* Revert updating of meson stylesheet URL (!46) [Jan Tojnar]
+
+Contributors:
+  Jan Tojnar, matoro, Logan Rathbone
+
+New in 0.8.4
+============
+
+* notification: Set the icon-name property as image hint instead of as app-icon
+  [Julian Sparber]
+* notify-send: Require valid UTF-8 for Summary and Body [Logan Rathbone]
+* notify-send: Allow sending an empty summary [Evy Garden]
+* notify-send: Flush stdout after printing notification ID [delthas]
+* build: Improve mapfile and support building in solaris [Alan Coopersmith]
+* libnotify/notification: Modernize the NotifyNotification class definition
+  (and add support for auto-pointers) [Marco Trevisan]
+
+* Bugs fixed:
+  - #35 notify-send dumps core if notification message is invalid UTF-8 [Logan
+    Rathbone]
+  - #39 libnotify should be quiet [Bastien Nocera]
+  - #44 fdo documentation link outdated in README.md [Marco Trevisan]
+
+Contributors:
+  Alan Coopersmith, Bastien Nocera, Evy Garden, Julian Sparber, Logan Rathbone,
+  Marco Trevisan, Sertonix, delthas
+
 New in 0.8.3
 ============
 

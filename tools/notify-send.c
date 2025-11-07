@@ -92,7 +92,8 @@ notify_notification_set_hint_variant (NotifyNotification *notification,
                                                              key, h_double);
                 }
         } else if (!strcasecmp (type, "byte")) {
-                gint h_byte = (gint) g_ascii_strtoull (value, NULL, 10);
+                int base = g_str_has_prefix (value, "0x") ? 16 : 10;
+                gint h_byte = (gint) g_ascii_strtoull (value, NULL, base);
 
                 if (h_byte < 0 || h_byte > 0xFF)
                         conv_error = TRUE;
@@ -162,20 +163,46 @@ on_sigint (gpointer data)
         return FALSE;
 }
 
+typedef struct _ActionData {
+        int selected_action_fd;
+        int activation_token_fd;
+} ActionData;
+
 static void
 handle_action (NotifyNotification *notify,
                char               *action,
                gpointer            user_data)
 {
-        const char *action_name = user_data;
-        const char *activation_token;
+        ActionData *action_data = user_data;
+        g_autoptr(GAppLaunchContext) launch_context = NULL;
 
-        activation_token = notify_notification_get_activation_token (notify);
+        launch_context = notify_notification_get_activation_app_launch_context (notify);
 
-        g_printf ("%s\n", action_name);
+        g_printf ("%s\n", action);
 
-        if (activation_token) {
+        if (action_data->selected_action_fd >= 0) {
+                write (action_data->selected_action_fd, action, strlen (action));
+                write (action_data->selected_action_fd, "\n", 1);
+                fsync (action_data->selected_action_fd);
+        }
+
+        if (launch_context) {
+                g_autofree char *activation_token = NULL;
+
+                activation_token =
+                        g_app_launch_context_get_startup_notify_id (launch_context,
+                                                                    NULL, NULL);
                 g_debug ("Activation Token: %s", activation_token);
+
+                if (action_data->activation_token_fd) {
+                        write (action_data->activation_token_fd,
+                               activation_token, strlen (activation_token));
+                }
+        }
+
+        if (action_data->activation_token_fd) {
+                write (action_data->activation_token_fd, "\n", 1);
+                fsync (action_data->activation_token_fd);
         }
 
         notify_notification_close (notify, NULL);
@@ -232,6 +259,7 @@ main (int argc, char *argv[])
         char               *body;
         static const char  *type = NULL;
         static char        *app_name = NULL;
+        static char        *app_icon = NULL;
         static char        *icon_str = NULL;
         static char       **n_text = NULL;
         static char       **hints = NULL;
@@ -240,13 +268,16 @@ main (int argc, char *argv[])
         static char        *server_vendor = NULL;
         static char        *server_version = NULL;
         static char        *server_spec_version = NULL;
+        static int          id_fd = -1;
+        static int          selected_action_fd = -1;
+        static int          activation_token_fd = -1;
         static gboolean     print_id = FALSE;
         static gint         notification_id = 0;
         static gboolean     do_version = FALSE;
         static gboolean     hint_error = FALSE, show_error = FALSE;
         static gboolean     transient = FALSE;
         static gboolean     wait = FALSE;
-        static glong        expire_timeout = NOTIFY_EXPIRES_DEFAULT;
+        static int          expire_timeout = NOTIFY_EXPIRES_DEFAULT;
         GOptionContext     *opt_ctx;
         NotifyNotification *notify;
         GError             *error = NULL;
@@ -266,6 +297,9 @@ main (int argc, char *argv[])
                 {"icon", 'i', 0, G_OPTION_ARG_FILENAME, &icon_str,
                  N_("Specifies an icon filename or stock icon to display."),
                  N_("ICON")},
+                {"app-icon", 'n', 0, G_OPTION_ARG_FILENAME, &app_icon,
+                 N_("Specifies an application icon filename or app icon name. The server may or may not display it."),
+                 N_("ICON")},
                 {"category", 'c', 0, G_OPTION_ARG_FILENAME, &type,
                  N_("Specifies the notification category."),
                  N_("TYPE[,TYPE...]")},
@@ -278,6 +312,8 @@ main (int argc, char *argv[])
                  N_("TYPE:NAME:VALUE")},
                 {"print-id", 'p', 0, G_OPTION_ARG_NONE, &print_id,
                  N_ ("Print the notification ID."), NULL},
+                {"id-fd", 0, 0, G_OPTION_ARG_INT, &id_fd,
+                 N_ ("File descriptor where to write the notification ID."), NULL},
                 {"replace-id", 'r', 0, G_OPTION_ARG_INT, &notification_id,
                  N_ ("The ID of the notification to replace."), N_("REPLACE_ID")},
                 {"wait", 'w', 0, G_OPTION_ARG_NONE, &wait,
@@ -289,6 +325,10 @@ main (int argc, char *argv[])
                  " May be set multiple times. The name of the action is output to stdout. If NAME is "
                  "not specified, the numerical index of the option is used (starting with 0)."),
                  N_("[NAME=]Text...")},
+                {"selected-action-fd", 0, 0, G_OPTION_ARG_INT, &selected_action_fd,
+                 N_ ("File descriptor where to write the action chosen by the user."), NULL},
+                {"activation-token-fd", 0, 0, G_OPTION_ARG_INT, &activation_token_fd    ,
+                 N_ ("File descriptor where to write the action activation token. The daemon must support it."), NULL},
                 {"version", 'v', 0, G_OPTION_ARG_NONE, &do_version,
                  N_("Version of the package."),
                  NULL},
@@ -322,7 +362,7 @@ main (int argc, char *argv[])
                 exit (0);
         }
 
-        if (n_text != NULL && n_text[0] != NULL && *n_text[0] != '\0')
+        if (n_text != NULL && n_text[0] != NULL)
         {
                 summary = n_text[0];
                 /* Translators: XDG notification component to be translated
@@ -369,6 +409,7 @@ main (int argc, char *argv[])
         notify = g_object_new (NOTIFY_TYPE_NOTIFICATION,
                                "summary", summary,
                                "body", body,
+                               "app-icon", app_icon,
                                "icon-name", icon_str,
                                "id", notification_id,
                                NULL);
@@ -379,7 +420,8 @@ main (int argc, char *argv[])
         notify_notification_set_app_name (notify, app_name);
 
         if (transient) {
-                notify_notification_set_hint (notify, "transient",
+                notify_notification_set_hint (notify,
+                                              NOTIFY_NOTIFICATION_HINT_TRANSIENT,
                                               g_variant_new_boolean (TRUE));
 
                 if (!server_has_capability ("persistence")) {
@@ -442,7 +484,7 @@ main (int argc, char *argv[])
                 }
 
                 while (have_actions && (action = actions[i++])) {
-                        gchar *name;
+                        g_autofree char *name = NULL;
                         const gchar *label;
 
                         spl = g_strsplit (action, "=", 2);
@@ -456,11 +498,17 @@ main (int argc, char *argv[])
                         }
 
                         if (*label != '\0' && *name != '\0') {
+                                g_autofree ActionData *action_data = NULL;
+
+                                action_data = g_new0 (ActionData, 1);
+                                action_data->selected_action_fd = selected_action_fd;
+                                action_data->activation_token_fd = activation_token_fd;
+
                                 notify_notification_add_action (notify,
                                                                 name,
                                                                 label,
                                                                 handle_action,
-                                                                name,
+                                                                g_steal_pointer (&action_data),
                                                                 g_free);
                                 wait = TRUE;
                         }
@@ -477,7 +525,7 @@ main (int argc, char *argv[])
                                   G_CALLBACK (handle_closed),
                                   NULL);
 
-                if (expire_timeout > 0) {
+                if (expire_timeout != NOTIFY_EXPIRES_NEVER) {
                         g_timeout_add (expire_timeout, on_wait_timeout, NULL);
                 }
         }
@@ -495,6 +543,16 @@ main (int argc, char *argv[])
         if (print_id) {
                 g_object_get (notify, "id", &notification_id, NULL);
                 g_printf ("%d\n", notification_id);
+                fflush (stdout);
+        }
+
+        if (id_fd >= 0) {
+                g_autofree char *id_str = NULL;
+
+                g_object_get (notify, "id", &notification_id, NULL);
+                id_str = g_strdup_printf ("%d\n", notification_id);
+                write (id_fd, id_str, strlen (id_str));
+                fsync (id_fd);
         }
 
         if (wait) {

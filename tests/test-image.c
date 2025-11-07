@@ -43,7 +43,7 @@ main (int argc, char *argv[])
         char           *uri;
         GdkPixbuf      *pixbuf;
 
-        gtk_init (&argc, &argv);
+        gtk_init ();
 
         if (!notify_init ("Images Test"))
                 exit (1);
@@ -84,11 +84,9 @@ main (int argc, char *argv[])
         n = notify_notification_new ("Raw image test",
                                      "Testing sending raw pixbufs",
                                      NULL);
-        pixbuf = gtk_icon_theme_load_icon (gtk_icon_theme_get_for_screen (gdk_screen_get_default ()),
-                                           "folder-open",
-                                           48,
-                                           GTK_ICON_LOOKUP_USE_BUILTIN,
-                                           NULL);
+
+        pixbuf = gdk_pixbuf_new_from_file ("applet-critical.png", NULL);
+
         if (pixbuf == NULL) {
                 fprintf (stderr, "failed to render pixbuf\n");
                 return 1;

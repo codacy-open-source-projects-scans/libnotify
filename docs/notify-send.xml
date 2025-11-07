@@ -71,6 +71,18 @@
         </listitem>
       </varlistentry>
       <varlistentry>
+        <term><option>--selected-action-fd</option>=<replaceable>FILE_DESCRIPTOR</replaceable></term>
+        <listitem>
+          <para>File descriptor where to write the action chosen by the user.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>--activation-token-fd</option>=<replaceable>FILE_DESCRIPTOR</replaceable></term>
+        <listitem>
+          <para>File descriptor where to write the action activation token. The daemon must support it.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
         <term><option>-u</option>, <option>--urgency</option>=<replaceable>LEVEL</replaceable></term>
         <listitem>
           <para>Specifies the urgency level (<literal>low</literal>, <literal>normal</literal>, <literal>critical</literal>).</para>
@@ -92,6 +104,13 @@
         </listitem>
       </varlistentry>
       <varlistentry>
+        <term><option>-n</option>, <option>--app-icon</option>=<replaceable>ICON</replaceable>
+        </term>
+        <listitem>
+          <para>Specifies an application icon filename or app icon name. The server may or may not display it.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
         <term><option>-c</option>, <option>--category</option>=<replaceable>TYPE</replaceable>[,<replaceable>TYPE</replaceable>…]
         </term>
         <listitem>
@@ -108,6 +127,12 @@
         <term><option>-p</option>, <option>--print-id</option></term>
         <listitem>
           <para>Print the notification ID.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>--id-fd=<replaceable>FILE_DESCRIPTOR</replaceable></option></term>
+        <listitem>
+          <para>File descriptor where to write the notification ID.</para>
         </listitem>
       </varlistentry>
       <varlistentry>
