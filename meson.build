@@ -1,6 +1,6 @@
 project('libnotify',
   'c',
-  version: '0.8.7',
+  version: '0.8.8',
   meson_version: '>= 0.64.0')
 
 fs = import('fs')

@@ -934,8 +934,7 @@ get_notification_gicon (NotifyNotification  *notification,
         NotifyNotificationPrivate *priv =
                 notify_notification_get_instance_private (notification);
         GFileInputStream *input;
-        GFile *file = NULL;
-        GIcon *gicon = NULL;
+        g_autoptr(GFile) file = NULL;
 
         if (priv->icon_pixbuf) {
                 return G_ICON (g_object_ref (priv->icon_pixbuf));
@@ -953,48 +952,50 @@ get_notification_gicon (NotifyNotification  *notification,
                 return g_themed_icon_new (priv->icon_name);
         }
 
-        input = g_file_read (file, NULL, error);
-
-        if (input) {
-                GByteArray *bytes_array = g_byte_array_new ();
-                guint8 buf[1024];
-
-                while (TRUE) {
-                        gssize read;
-
-                        read = g_input_stream_read (G_INPUT_STREAM (input),
-                                                    buf,
-                                                    G_N_ELEMENTS (buf),
-                                                    NULL, NULL);
-
-                        if (read > 0) {
-                                g_byte_array_append (bytes_array, buf, read);
-                        } else {
-                                if (read < 0) {
-                                        g_byte_array_unref (bytes_array);
-                                        bytes_array = NULL;
-                                }
-
-                                break;
-                        }
-                }
-
-                if (bytes_array && bytes_array->len) {
-                        GBytes *bytes;
-
-                        bytes = g_byte_array_free_to_bytes (bytes_array);
-                        bytes_array = NULL;
-
-                        gicon = g_bytes_icon_new (bytes);
-                } else if (bytes_array) {
-                        g_byte_array_unref (bytes_array);
-                }
+        if (!(input = g_file_read (file, NULL, error))) {
+                return NULL;
         }
 
-        g_clear_object (&input);
-        g_clear_object (&file);
+        g_autoptr(GByteArray) bytes_array = g_byte_array_new ();
+        g_autoptr(GInputStream) buffered_stream = NULL;
 
-        return gicon;
+        buffered_stream = g_buffered_input_stream_new (G_INPUT_STREAM (input));
+
+        while (TRUE) {
+                gssize read;
+
+                read = g_buffered_input_stream_fill (G_BUFFERED_INPUT_STREAM (buffered_stream),
+                                                     -1, NULL, error);
+
+                if (read < 0) {
+                        return NULL;
+                }
+
+                if (read > 0) {
+                        gconstpointer buffer;
+                        gsize buffer_size;
+
+                        buffer = g_buffered_input_stream_peek_buffer (G_BUFFERED_INPUT_STREAM (buffered_stream),
+                                                                      &buffer_size);
+                        g_byte_array_append (bytes_array, buffer, buffer_size);
+                        continue;
+                }
+
+                break;
+        }
+
+        if (bytes_array->len) {
+                g_autoptr(GBytes) bytes = NULL;
+
+                bytes = g_byte_array_free_to_bytes (g_steal_pointer (&bytes_array));
+
+                return g_bytes_icon_new (bytes);
+        }
+
+        g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                     "Failed to read the file %s", g_file_peek_path (file));
+
+        return NULL;
 }
 
 static gboolean

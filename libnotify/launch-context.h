@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 8 -*- */
-/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* SPDX-License-Identifier: LGPL-3.0-or-later */
 /* Copyright 2025 Canonical Ltd */
 /* Authors: Alessandro Astone, Marco Trevisan */
 

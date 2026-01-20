@@ -1,3 +1,35 @@
+New in 0.8.8
+============
+
+This release contains various fixes to have better handing for icons,
+addressing issues due to recent changes, as well with improvements and
+new features for notify-send.
+
+Added a fully-functional notify-send test suite, thus we encourage
+distributors to run the tests through meson.
+
+* notification-hints: Define notification hints with constant values [Marco]
+* notification: Use better URI parsing for icons [Marco]
+* notification: Improve property changes notifications [Marco]
+* notification: Simplify the logic to support the legacy hints names [Marco]
+* notify-send: Support parsing hex byte hints [Marco]
+* notification: Use the icon as icon-name, not as app-icon [Marco]
+* notify-send: Set both the image path and the app-icon
+* notify-send: Add an option to override the app-icon on notification [Marco]
+* notification: Replace actions added with an existing name [Marco]
+* notification: Fail on invalid action invocation [Marco]
+* notify-send: Add support to write the notification ID to a FD [Marco]
+* notify-send: Add support to write the activated action to a FD [Marco]
+* notify-send: Add support to write the activation token to a FD [Marco]
+* notification: Improve reading images when inside a portal [Marco]
+* tests: Add exensive notify-send test suite and coverage check [Marco]
+
+* Bugs fixed:
+  - #49 The closed signal only fires once [Marco]
+  - #55 Icon handling requires call to notify_get_server_info [Marco]
+  - #61 failed to build libnotify 0.8.7 on macOS [Marco]
+
+
 New in 0.8.7
 ============
 

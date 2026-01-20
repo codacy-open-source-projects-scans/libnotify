@@ -155,7 +155,7 @@ on_sigint (gpointer data)
 {
         NotifyNotification *notification = data;
 
-        g_printerr ("Wait cancelled, closing notification\n");
+        g_printerr ("%s\n", N_("Wait cancelled, closing notification"));
 
         notify_notification_close (notification, NULL);
         g_main_loop_quit (loop);
@@ -211,7 +211,7 @@ handle_action (NotifyNotification *notify,
 static gboolean
 on_wait_timeout (gpointer data)
 {
-        fprintf (stderr, "Wait timeout expired\n");
+        g_printerr ("%s\n", N_("Wait timeout expired"));
         g_main_loop_quit (loop);
 
         return FALSE;
@@ -352,7 +352,7 @@ main (int argc, char *argv[])
         g_option_context_free (opt_ctx);
 
         if (!retval) {
-                fprintf (stderr, "%s\n", error->message);
+                g_printerr ("%s\n", error->message);
                 g_error_free (error);
                 exit (1);
         }
@@ -372,7 +372,7 @@ main (int argc, char *argv[])
         }
 
         if (summary == NULL) {
-                fprintf (stderr, "%s\n", N_("No summary specified."));
+                g_printerr ("%s\n", N_("No summary specified."));
                 exit (1);
         }
 
@@ -385,8 +385,7 @@ main (int argc, char *argv[])
                 validate_utf8_or_die (body, N_("Body"));
 
                 if (n_text[2] != NULL) {
-                        fprintf (stderr, "%s\n",
-                                 N_("Invalid number of options."));
+                        g_printerr ("%s\n", N_("Invalid number of options."));
                         exit (1);
                 }
         }
@@ -445,9 +444,9 @@ main (int argc, char *argv[])
                         l = g_strv_length (tokens);
 
                         if (l != 3) {
-                                fprintf (stderr, "%s\n",
-                                         N_("Invalid hint syntax specified. "
-                                            "Use TYPE:NAME:VALUE."));
+                                g_printerr ("%s\n",
+                                            N_("Invalid hint syntax specified. "
+                                               "Use TYPE:NAME:VALUE."));
                                 hint_error = TRUE;
                         } else {
                                 retval = notify_notification_set_hint_variant (notify,
@@ -457,7 +456,7 @@ main (int argc, char *argv[])
                                                                                &error);
 
                                 if (!retval) {
-                                        fprintf (stderr, "%s\n", error->message);
+                                        g_printerr ("%s\n", error->message);
                                         g_clear_error (&error);
                                         hint_error = TRUE;
                                 }
@@ -534,7 +533,11 @@ main (int argc, char *argv[])
                 retval = notify_notification_show (notify, &error);
 
                 if (!retval) {
-                        fprintf (stderr, "%s\n", error->message);
+                        g_autofree char *msg = NULL;
+
+                        msg = g_strdup_printf ("Failed to show notification: %s",
+                                               error->message);
+                        g_printerr ("%s\n", msg);
                         g_clear_error (&error);
                         show_error = TRUE;
                 }

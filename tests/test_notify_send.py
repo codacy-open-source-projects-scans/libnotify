@@ -98,6 +98,9 @@ class TestBaseNotifySend(dbusmock.DBusTestCase):
         print(method, "Called with:", args, "=>", ret)
         return args
 
+    def assertNoDaemonCall(self, method):
+        self.assertFalse(self.obj_daemon.GetMethodCalls(method))
+
     def notify_send_proc(self, args=[], stdout=None, stderr=None, pass_fds=[]):
         print("Launching", [notify_send] + args, "With FDs", pass_fds)
         ns_proc = subprocess.Popen([notify_send] + args, env=self.env,
@@ -638,6 +641,15 @@ class TestPortalNotifySend(TestBasePortalNotifySend):
                     "icon": ("bytes", dbus.Array(image_bytes, signature="y")),
                 },
             )
+
+    def test_missing_file_image_only(self):
+        """notify-send with missing local image"""
+
+        ns_proc = self.notify_send_proc(["image-path-only", "-i",
+                                         "file:///this-must-not|exist"])
+        ns_proc.wait()
+        self.assertEqual(ns_proc.returncode, 1)
+        self.assertNoDaemonCall("AddNotification")
 
     def test_app_icon_only(self):
         """notify-send with app-icon"""
